@@ -13,6 +13,8 @@ int input_stop(int id);
 int input_run(int id);
 int input_cmd(int plugin, unsigned int control_id, unsigned int typecode, int value);
 
+void put_mmal_frame_out(char* data, size_t size);
+
 #ifdef __cplusplus
 }
 #endif

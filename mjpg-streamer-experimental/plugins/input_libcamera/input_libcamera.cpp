@@ -31,10 +31,22 @@
 #include "LibCamera.h"
 #include "jpeg_utils.h"
 
+#include "mmal_encoder.h"
+
+#include <sys/time.h>
+
+long long get_current_timestamp() {
+    struct timeval te; 
+    gettimeofday(&te, NULL); // get current time
+    long long milliseconds = te.tv_sec*1000LL + te.tv_usec/1000; // calculate milliseconds
+    return milliseconds;
+}
+
 using namespace std;
 
 /* private functions and variables to this plugin */
 static globals     *pglobal;
+static int plugin_number;
 
 typedef struct {
     int fps_set, fps,
@@ -132,6 +144,7 @@ int input_init(input_parameter *param, int plugin_no)
     
     settings = pctx->init_settings = init_settings();
     pglobal = param->global;
+    plugin_number = plugin_no;
     in = &pglobal->in[plugin_no];
     in->context = pctx;
 
@@ -295,6 +308,8 @@ int input_init(input_parameter *param, int plugin_no)
     pctx->videoIn->stride = stride;
     pctx->videoIn->snapshot_width = snapshot_width;
     pctx->videoIn->snapshot_height = snapshot_height;
+
+    start_mmal_encoder(width, height);
     
     return 0;
     
@@ -380,6 +395,19 @@ fatal_error:
     exit(EXIT_FAILURE);
 }
 
+void put_mmal_frame_out(char* data, size_t size) {
+    input * in = &pglobal->in[plugin_number];
+
+    pthread_mutex_lock(&in->db);
+
+    in->size = size;
+    memcpy(in->buf, data, size);
+
+    /* signal fresh_frame */
+    pthread_cond_broadcast(&in->db_update);
+    pthread_mutex_unlock(&in->db);
+}
+
 void *worker_thread(void *arg)
 {
     input * in = (input*)arg;
@@ -400,6 +428,8 @@ void *worker_thread(void *arg)
     pctx->init_settings = NULL;
     settings = NULL;
 
+    long long last_timestamp;
+
     pctx->camera.startCamera();
     while (!pglobal->stop) {
 
@@ -414,7 +444,8 @@ void *worker_thread(void *arg)
 
         if (!pctx->camera.readFrame(&frameData))
             continue;
-            
+
+#if 0
         pthread_mutex_lock(&in->db);
 
         pctx->videoIn->framebuffer = frameData.imageData;
@@ -424,6 +455,15 @@ void *worker_thread(void *arg)
         /* signal fresh_frame */
         pthread_cond_broadcast(&in->db_update);
         pthread_mutex_unlock(&in->db);
+#else
+        long long current_timestamp = get_current_timestamp();
+        long long delta_timestamp = current_timestamp - last_timestamp;
+        last_timestamp = current_timestamp;
+
+        printf("Camera running at a rate of %lld ms \n", delta_timestamp);
+
+        mmal_new_data((char*)frameData.imageData, frameData.size);
+#endif
 
         pctx->camera.returnFrameBuffer(frameData);
         if (is_switch) {

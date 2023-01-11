@@ -15,9 +15,9 @@ if (PLUGIN_INPUT_LIBCAMERA)
     set(CMAKE_CXX_STANDARD 17)
     include_directories(${LIBCAMERA_INCLUDE_DIRS})
 
-    MJPG_STREAMER_PLUGIN_COMPILE(input_libcamera input_libcamera.cpp LibCamera.cpp jpeg_utils.c)
+    MJPG_STREAMER_PLUGIN_COMPILE(input_libcamera input_libcamera.cpp LibCamera.cpp jpeg_utils.c mmal_encoder.c)
 
-    target_link_libraries(input_libcamera ${LIBCAMERA_LIBRARIES} ${JPEG_LIB})
+    target_link_libraries(input_libcamera ${LIBCAMERA_LIBRARIES} ${JPEG_LIB} mmal_core mmal_util mmal_vc_client vcos bcm_host)
     
 endif()
 
